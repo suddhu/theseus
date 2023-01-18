@@ -14,6 +14,7 @@ __pycache__/
 expts/
 *.ipynb_checkpoints
 examples/*.ipynb_checkpoints
+examples/allegro/output/*
 outputs/
 examples/outputs/
 theseus/extlib/*.so
