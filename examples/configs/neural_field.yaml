@@ -1,0 +1,32 @@
+
+seed: 0
+device: cuda:0
+
+data: 
+  gt_sdf_file: /home/suddhu/Projects/theseus/examples/neural_field/gt_sdfs/035_power_drill.npy
+  sdf_transf_file: /home/suddhu/Projects/theseus/examples/neural_field/gt_sdfs/035_power_drill_transform.txt
+  scene_file: /home/suddhu/Projects/tac_neural/YCB-Slide/dataset/obj_models/035_power_drill/nontextured.stl
+
+camera:
+  depth_scale: 1.0
+  cam_dist: 0.0
+  fps: 10
+  reduce_factor: 8
+  reduce_factor_up: 4
+  intrinsics:
+    w: 1280
+    h: 720
+    yfov: 60
+
+  noise: 
+    rotation: 0.5
+    translation: 2e-3
+
+sampling: 
+  n_rays: 200
+  n_rays_is_kf: 200
+  n_strat_samples: 5
+  n_surf_samples: 25
+  depth_range: [0.3, 1.0]   # [0.6, 6.0] for D455, [0.3, 3.0] for D435
+  surface_samples_offset: 0.01
+  dist_behind_surf: 0.005
