@@ -15,6 +15,7 @@ expts/
 *.ipynb_checkpoints
 examples/*.ipynb_checkpoints
 examples/allegro/output/*
+examples/neural_field/gt_sdfs/*
 outputs/
 examples/outputs/
 theseus/extlib/*.so

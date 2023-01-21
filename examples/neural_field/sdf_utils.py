@@ -4,126 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import numpy as np
-import scipy
-from scipy.spatial.transform import Rotation as R
 import torch
 
 import torch
 from itertools import product
 from torch import nn
+import loss
 
-
-def sdf_eval_and_loss(
-    self,
-    sample,
-    vision_weights=None,
-    do_avg_loss=True,
-):
-    pc = sample["pc"]
-    z_vals = sample["z_vals"]
-    indices_b = sample["indices_b"]
-    indices_h = sample["indices_h"]
-    indices_w = sample["indices_w"]
-    dirs_C_sample = sample["dirs_C_sample"]
-    depth_sample = sample["depth_sample"]
-    T_WC_sample = sample["T_WC_sample"]
-    norm_sample = sample["norm_sample"]
-    binary_masks = sample["binary_masks"]
-    depth_batch = sample["depth_batch"]
-    format = sample["format"]
-
-    loss_params = self.loss_params
-
-    do_sdf_grad = loss_params.eik_weight != 0
-    if do_sdf_grad:
-        pc.requires_grad_()
-
-    if "realsense" in format:
-        # add noise to prevent overfitting to high-freq data from a noisy sensor
-        noise = torch.randn(pc.shape, device=pc.device) * self.noise_std
-        pc = pc + noise
-
-    # sdf and sdf gradient
-    sdf = self.sdf_map(pc, None)  # SDF train
-    sdf = sdf.reshape(pc.shape[:-1])
-
-    sdf_grad = None
-    if do_sdf_grad:
-        sdf_grad = model.gradient(pc, sdf)
-
-    # compute bounds
-    bounds, grad_vec = loss.bounds(
-        loss_params.bounds_method,
-        dirs_C_sample,
-        depth_sample,
-        T_WC_sample,
-        z_vals,
-        pc,
-        loss_params.trunc_distance,
-        norm_sample,
-        do_grad=False,
-    )
-
-    # compute loss
-
-    # equation (8)
-    sdf_loss_mat, free_space_ixs = loss.sdf_loss(
-        sdf, bounds, loss_params.trunc_distance, loss_type=loss_params.loss_type
-    )
-
-    #### added, test
-    eik_loss_mat = None
-    if loss_params.eik_weight != 0:
-        eik_loss_mat = torch.abs(sdf_grad.norm(2, dim=-1) - 1)
-
-    if vision_weights is not None:
-        vision_weights = vision_weights.reshape(sdf.shape)
-    total_loss, total_loss_mat, losses = loss.tot_loss(
-        sdf_loss_mat,
-        eik_loss_mat,
-        free_space_ixs,
-        bounds,
-        loss_params.trunc_weight,
-        loss_params.eik_weight,
-        vision_weights=vision_weights,
-    )
-    ####
-
-    # total_loss, total_loss_mat, losses = loss.tot_loss(
-    #     sdf_loss_mat,
-    #     free_space_ixs,
-    #     bounds,
-    #     loss_params.trunc_weight,
-    # )
-
-    loss_approx, frame_avg_loss = None, None
-
-    W, H, loss_approx_factor = (
-        self.sensor[format].W,
-        self.sensor[format].H,
-        self.sensor[format].loss_approx_factor,
-    )
-
-    if do_avg_loss:
-        loss_approx, frame_avg_loss = loss.frame_avg(
-            total_loss_mat,
-            depth_batch,
-            indices_b,
-            indices_h,
-            indices_w,
-            W,
-            H,
-            loss_approx_factor,
-            binary_masks,
-        )
-
-    return (
-        total_loss,
-        total_loss_mat,
-        losses,
-        loss_approx,
-        frame_avg_loss,
-    )
+"""
+SDF utils for mesh file
+"""
 
 
 class RegularGridInterpolator:
@@ -183,7 +73,21 @@ class RegularGridInterpolator:
         return numerator / denominator
 
 
+def get_grid_pts(dims, transform):
+    x = np.arange(dims[0])
+    y = np.arange(dims[1])
+    z = np.arange(dims[2])
+    x = x * transform[0, 0] + transform[0, 3]
+    y = y * transform[1, 1] + transform[1, 3]
+    z = z * transform[2, 2] + transform[2, 3]
+    return x, y, z
+
+
 class GT_SDF(nn.Module):
+    """
+    Compute SDF value given (x, y, z) via RegularGridInterpolator
+    """
+
     def __init__(self, gt_sdf_file, sdf_transf_file, device):
         super().__init__()
         sdf_grid = np.load(gt_sdf_file)
@@ -209,20 +113,46 @@ class GT_SDF(nn.Module):
         return h
 
 
-# Helper scripts to load sdf from file
+class SDF:
+    """
+    Loads SDF from file and transform
+    """
 
+    def __init__(self, data_cfg, loss_cfg, device):
+        super(SDF, self).__init__()
+        self.sdf_map = GT_SDF(
+            gt_sdf_file=data_cfg.gt_sdf_file,
+            sdf_transf_file=data_cfg.sdf_transf_file,
+            device=device,
+        )
+        self.loss_cfg = loss_cfg
 
-def sdf_interpolator(sdf_grid, transform):
-    x, y, z = get_grid_pts(sdf_grid.shape, transform)
-    sdf_interp = scipy.interpolate.RegularGridInterpolator((x, y, z), sdf_grid)
-    return sdf_interp
+    def sdf_eval_and_loss(
+        self,
+        sample,
+    ):
+        pc = sample["pc"]
+        z_vals = sample["z_vals"]
+        depth_sample = sample["depth_sample"]
 
+        sdf = self.sdf_map(pc, None)  # SDF train
+        sdf = sdf.reshape(pc.shape[:-1])
 
-def get_grid_pts(dims, transform):
-    x = np.arange(dims[0])
-    y = np.arange(dims[1])
-    z = np.arange(dims[2])
-    x = x * transform[0, 0] + transform[0, 3]
-    y = y * transform[1, 1] + transform[1, 3]
-    z = z * transform[2, 2] + transform[2, 3]
-    return x, y, z
+        # compute bounds
+        bounds = loss.bounds_pc(pc, z_vals, depth_sample)
+        # compute losses
+        sdf_loss_mat, free_space_ixs = loss.sdf_loss(
+            sdf, bounds, self.loss_cfg.trunc_distance, loss_type=self.loss_cfg.loss_type
+        )
+
+        total_loss, total_loss_mat, losses = loss.tot_loss(
+            sdf_loss_mat,
+            free_space_ixs,
+            self.loss_cfg.trunc_weight,
+        )
+
+        return (
+            total_loss,
+            total_loss_mat,
+            losses,
+        )

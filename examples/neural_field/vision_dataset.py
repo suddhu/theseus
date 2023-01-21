@@ -4,12 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 import numpy as np
-import git
 import torch
 
 
-# quicklink to the root and folder directories
-root = git.Repo(".", search_parent_directories=True).working_tree_dir
 import pyrender
 import trimesh
 import open3d as o3d
@@ -52,6 +49,10 @@ class DepthScale(object):
 
 
 class VisionDataset(torch.utils.data.Dataset):
+    """
+    Simulates realsense RGB-D
+    """
+
     def __init__(self, scene_file, cfg, device):
         W = cfg.intrinsics.w
         H = cfg.intrinsics.h
@@ -66,7 +67,7 @@ class VisionDataset(torch.utils.data.Dataset):
             ]
         )
 
-        self.realsense = vision_sim(scene_file, W=W, H=H, yfov=yfov)
+        self.realsense = Renderer(scene_file, W=W, H=H, yfov=yfov)
         self.rgb_transform = rgb_transform
         self.depth_transform = depth_transform
         self.length = 0
@@ -121,7 +122,11 @@ class VisionDataset(torch.utils.data.Dataset):
         return sample
 
 
-class vision_sim:
+class Renderer:
+    """
+    Renders image given camera pose and intrinsics with pyrender
+    """
+
     def __init__(self, scene_file, W=1280, H=720, yfov=60):
         # dense point cloud with vertice information
         fuze_trimesh = trimesh.load(scene_file)
@@ -193,28 +198,3 @@ class vision_sim:
         )
 
         return color, depth, self.camera_pose
-
-    # https://github.com/mmatl/pyrender/issues/14#issuecomment-485881479
-    def pointcloud(self, depth, fov):
-        height = depth.shape[0]
-        width = depth.shape[1]
-
-        fy = fx = 0.5 / np.tan(fov * 0.5)  # assume aspectRatio is one.
-
-        mask = np.where(depth > 0)
-
-        x = mask[1]
-        y = mask[0]
-
-        normalized_x = (x.astype(np.float32) - width * 0.5) / width
-        normalized_y = (y.astype(np.float32) - height * 0.5) / height
-
-        normalized_y = -normalized_y
-
-        world_x = normalized_x * depth[y, x] / fx
-        world_y = normalized_y * depth[y, x] / fy
-        # world_z = depth[y, x]
-        world_z = -depth[y, x]
-        ones = np.ones(world_z.shape[0], dtype=np.float32)
-
-        return np.vstack((world_x, world_y, world_z, ones)).T

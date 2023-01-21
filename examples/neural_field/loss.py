@@ -3,13 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+"""
+Loss terms for SDF, from https://arxiv.org/pdf/2204.02296.pdf and https://arxiv.org/pdf/2104.04532.pdf
+"""
+
 import torch
 
-cosSim = torch.nn.CosineSimilarity(dim=-1, eps=1e-6)
 
-# method 3: brute force
 def bounds_pc(pc, z_vals, depth_sample):
-    with torch.set_grad_enabled(False):
+    """
+    Equation 4 iSDF https://arxiv.org/pdf/2204.02296.pdf
+    """
+    with torch.set_grad_enabled(True):
         surf_pc = pc[:, 0]  # first element always pc?
         diff = pc[:, :, None] - surf_pc
         dists = diff.norm(dim=-1)
@@ -81,69 +86,18 @@ def tsdf_loss(sdf, target_sdf, trunc_dist):
 
 def tot_loss(
     sdf_loss_mat,
-    eik_loss_mat,
     free_space_ixs,
-    bounds,
     trunc_weight,
-    eik_weight,
-    vision_weights=None,
 ):
+    """
+    Applies truncation weight for non-free space and outputs average loss
+    """
     sdf_loss_mat[~free_space_ixs] *= trunc_weight
-
-    if vision_weights is not None:
-        sdf_loss_mat = torch.mul(sdf_loss_mat, vision_weights)
-    # print("zero losses",
-    #       sdf_loss_mat.numel() - sdf_loss_mat.nonzero().shape[0])
 
     losses = {"sdf_loss": sdf_loss_mat.mean().item()}
     tot_loss_mat = sdf_loss_mat
-
-    # eikonal loss
-    if eik_loss_mat is not None:
-        eik_loss_mat = eik_loss_mat * eik_weight
-        tot_loss_mat = tot_loss_mat + eik_loss_mat
-        losses["eikonal_loss"] = eik_loss_mat.mean().item()
 
     tot_loss = tot_loss_mat.mean()
     losses["total_loss"] = tot_loss
 
     return tot_loss, tot_loss_mat, losses
-
-
-def approx_loss(full_loss, binary_masks, W, H, factor=8):
-    w_block = W // factor
-    h_block = H // factor
-    loss_approx = full_loss.view(-1, factor, h_block, factor, w_block)
-    loss_approx = loss_approx.sum(dim=(2, 4))
-    actives = binary_masks.view(-1, factor, h_block, factor, w_block)
-    actives = actives.sum(dim=(2, 4))
-    actives[actives == 0] = 1.0
-    loss_approx = loss_approx / actives
-
-    return loss_approx
-
-
-def frame_avg(
-    total_loss_mat,
-    depth_batch,
-    indices_b,
-    indices_h,
-    indices_w,
-    W,
-    H,
-    loss_approx_factor,
-    binary_masks,
-):
-
-    # frame average losses
-    full_loss = torch.zeros(
-        depth_batch.shape, dtype=total_loss_mat.dtype, device=depth_batch.device
-    )
-    full_loss[indices_b, indices_h, indices_w] = total_loss_mat.sum(-1).detach()
-
-    loss_approx = approx_loss(full_loss, binary_masks, W, H, factor=loss_approx_factor)
-    factor = loss_approx.shape[1]
-    frame_sum = loss_approx.sum(dim=(1, 2))
-    frame_avg_loss = frame_sum / (factor * factor)
-
-    return loss_approx, frame_avg_loss
