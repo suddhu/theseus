@@ -79,7 +79,7 @@ def tsdf_loss(sdf, target_sdf, trunc_dist):
     SDF values in truncation region are scaled in range [0, 1].
     """
     free_space_loss_mat = sdf - torch.ones(sdf.shape, device=sdf.device)
-    trunc_loss_mat = sdf - target_sdf / trunc_dist
+    trunc_loss_mat = sdf - target_sdf
 
     return free_space_loss_mat, trunc_loss_mat
 

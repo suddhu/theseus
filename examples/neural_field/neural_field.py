@@ -20,11 +20,12 @@ import random
 import numpy as np
 from sampler import Sampler
 from visualizer import Visualizer
+from pose import camera_transf
 from theseus import LieGroupTensor
 import os
 
 
-@hydra.main(config_path="../configs/", config_name="neural_field")
+@hydra.main(version_base=None, config_path="../configs/", config_name="neural_field")
 def main(cfg):
     device = cfg.device
     optimizer_type = cfg.optimizer
@@ -120,13 +121,19 @@ def main(cfg):
 
     if optimizer_type == "ADAM":
         """
-        7. ADAM optimizer: first order gradient descent steps using TSDF loss on the lie tangent
+        7. ADAM optimizer: first order gradient descent steps using TSDF loss on exponential map
         """
-        T.tensor = LieGroupTensor(T)
-        T.tensor.requires_grad = True
+        cam_transf = camera_transf().to(device)
+
         N = 1000
 
-        optimizer = torch.optim.Adam([T.tensor], lr=1e-3, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(
+            [
+                {"params": [cam_transf.w, cam_transf.theta], "lr": 1e-2},
+                {"params": [cam_transf.t], "lr": 5e-4},
+            ],
+            weight_decay=1e-2,
+        )
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=[N // 2, 2 * N // 3], gamma=0.5
         )
@@ -135,17 +142,15 @@ def main(cfg):
 
         # Optimize over N iterations
         for i in range(N):
-            cam_matrix = T
+            cam_matrix = cam_transf(T.to_matrix())
             # cam_matrix.retain_grad()
             loss = sdf_loss((cam_matrix,), (depth,))
             loss.backward()
-            with th.set_lie_tangent_enabled(True):
-                optimizer.step()
+            optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
-
             # compute the between pose error wrt ground-truth
-            T_opt = th.SE3(tensor=T.tensor.clone())
+            T_opt = th.SE3(tensor=cam_matrix[:, :3, :])
             pose_err = T_gt.local(T_opt)
             pose_err = (pose_err**2).sum(dim=1).mean()
             print(f"ADAM iteration {i}, loss: {loss.item()}, pose error: {pose_err}")

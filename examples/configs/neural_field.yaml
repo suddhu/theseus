@@ -18,8 +18,8 @@ camera:
     yfov: 60
 
   noise: 
-    rotation: 0.2
-    translation: 1e-2
+    rotation: 0.5
+    translation: 5e-2
 
 sampling: 
   n_rays: 200
@@ -31,7 +31,7 @@ sampling:
 
 loss:
   bounds_method: pc
-  loss_type: L1
+  loss_type: L2
   trunc_weight: 25.0
   eik_weight: 0.0
   trunc_distance: 5e-2
