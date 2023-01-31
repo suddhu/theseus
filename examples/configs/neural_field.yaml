@@ -2,6 +2,7 @@
 seed: 0
 device: cuda:0
 optimizer: ADAM # ADAM, GN 
+format: exp_se3 # exp_so3_t
 visualize: True
 
 data: 

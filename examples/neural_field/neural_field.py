@@ -20,7 +20,7 @@ import random
 import numpy as np
 from sampler import Sampler
 from visualizer import Visualizer
-from pose import camera_transf
+from pose import OptSO3T, OptSE3
 from theseus import LieGroupTensor
 import os
 
@@ -125,17 +125,24 @@ def main(cfg):
         """
         7. ADAM optimizer: first order gradient descent steps using TSDF loss on exponential map
         """
-        cam_transf = camera_transf().to(device)
-
         N = 1000
 
-        optimizer = torch.optim.Adam(
-            [
-                {"params": [cam_transf.w, cam_transf.theta], "lr": 1e-2},
-                {"params": [cam_transf.t], "lr": 5e-4},
-            ],
-            weight_decay=1e-3,
-        )
+        if cfg.format == "exp_so3_t":
+            cam_transf = OptSO3T().to(device)
+            optimizer = torch.optim.Adam(
+                [
+                    {"params": [cam_transf.w, cam_transf.theta], "lr": 1e-2},
+                    {"params": [cam_transf.t], "lr": 5e-4},
+                ],
+                weight_decay=1e-3,
+            )
+        else:
+            cam_transf = OptSE3().to(device)
+            optimizer = torch.optim.Adam(
+                params=cam_transf.parameters(),
+                lr=1e-2,
+                weight_decay=1e-3,
+            )
 
         optimizer.zero_grad()
 
