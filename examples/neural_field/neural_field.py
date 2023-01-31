@@ -147,8 +147,9 @@ def main(cfg):
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            # compute the between pose error wrt ground-truth
-            T_opt = th.SE3(tensor=cam_matrix[:, :3, :])
+            T_opt = th.SE3(
+                tensor=cam_matrix[:, :3, :]
+            )  # compute the b/w pose error wrt ground-truth
             pose_err = T_gt.local(T_opt)
             pose_err = (pose_err**2).sum(dim=1).mean()
             print(

@@ -92,7 +92,7 @@ class Visualizer:
         while True:
             time.sleep(1)
 
-    def set_cam(self, cam_pos=np.array([0.5, 0.5, 0.7])):
+    def set_cam(self, cam_pos=np.array([0.5, 0.5, 0.9])):
         ctr = self.vis.get_view_control()
         ctr.set_up((0, 0, 1))
         ctr.set_front(cam_pos)

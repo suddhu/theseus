@@ -33,5 +33,4 @@ loss:
   bounds_method: pc
   loss_type: L1
   trunc_weight: 1.0
-  eik_weight: 0.0
   trunc_distance: 5e-2
