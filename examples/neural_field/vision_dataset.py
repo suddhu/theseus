@@ -198,3 +198,20 @@ class Renderer:
         )
 
         return color, depth, self.camera_pose
+
+    def depth_normal(self, depth):
+        # https://stackoverflow.com/a/53351384/8628379
+        zy, zx = np.gradient(depth)
+        # You may also consider using Sobel to get a joint Gaussian smoothing and differentation
+        # to reduce noise
+        # zx = cv2.Sobel(d_im, cv2.CV_64F, 1, 0, ksize=5)
+        # zy = cv2.Sobel(d_im, cv2.CV_64F, 0, 1, ksize=5)
+
+        normal = np.dstack((-zx, -zy, np.ones_like(depth)))
+        n = np.linalg.norm(normal, axis=2)
+        normal[:, :, 0] /= n
+        normal[:, :, 1] /= n
+        normal[:, :, 2] /= n
+
+        # offset and rescale values to be in 0-255
+        return normal

@@ -71,6 +71,13 @@ class Visualizer:
         self.pcd.points = o3d.utility.Vector3dVector(np.zeros((100, 3)))
         self.vis.add_geometry(self.pcd)
 
+        # track position of camera too
+        self.cam_pos = o3d.geometry.PointCloud()
+        self.cam_pos.points = o3d.utility.Vector3dVector(
+            np.expand_dims(opt_T[:3, 3], 0)
+        )
+        self.vis.add_geometry(self.cam_pos)
+
         # rot[:3, :3] = R.from_euler("y", 15, degrees=True).as_matrix()
         # rot = rot.dot(camera_params.extrinsic)
         # camera_params.extrinsic = rot
@@ -102,11 +109,15 @@ class Visualizer:
             np.linalg.inv(opt_T @ self.flip_matrix),
             scale=0.1,
         )
+        self.cam_pos.points.extend(
+            o3d.utility.Vector3dVector(np.expand_dims(opt_T[:3, 3], 0))
+        )
         self.opt_frustum.paint_uniform_color([0.0, 0.0, 1.0])
         self.vis.add_geometry(self.opt_frustum)
         self.set_cam()
         self.vis.poll_events()
         self.vis.update_renderer()
+        self.vis.update_geometry(self.cam_pos)
         return
 
     def update_pc(self, pc):

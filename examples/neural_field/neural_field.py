@@ -24,6 +24,8 @@ from pose import camera_transf
 from theseus import LieGroupTensor
 import os
 
+torch.set_default_dtype(torch.float64)
+
 
 @hydra.main(version_base=None, config_path="../configs/", config_name="neural_field")
 def main(cfg):
@@ -132,10 +134,7 @@ def main(cfg):
                 {"params": [cam_transf.w, cam_transf.theta], "lr": 1e-2},
                 {"params": [cam_transf.t], "lr": 5e-4},
             ],
-            weight_decay=1e-2,
-        )
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=[N // 2, 2 * N // 3], gamma=0.5
+            weight_decay=1e-3,
         )
 
         optimizer.zero_grad()
@@ -147,13 +146,14 @@ def main(cfg):
             loss = sdf_loss((cam_matrix,), (depth,))
             loss.backward()
             optimizer.step()
-            scheduler.step()
             optimizer.zero_grad()
             # compute the between pose error wrt ground-truth
             T_opt = th.SE3(tensor=cam_matrix[:, :3, :])
             pose_err = T_gt.local(T_opt)
             pose_err = (pose_err**2).sum(dim=1).mean()
-            print(f"ADAM iteration {i}, loss: {loss.item()}, pose error: {pose_err}")
+            print(
+                f"ADAM iteration {i}, supervision loss: {loss.item():.4f}, pose error: {pose_err:.4f}"
+            )
             print(
                 "---------------------------------------------------------------"
                 "---------------------------"
