@@ -65,20 +65,22 @@ def main(visualize=False):
         ],
         device=device,
     )  # init grasp pose for allegro
+    # Allegro convention is index ('link_3.0_tip') middle ('link_7.0_tip') ring ('link_11.0_tip') thumb ('link_15.0_tip') order
 
     # FK function is applied breadth-first, so swap the indices from the allegro convention
     joint_map = torch.tensor(
         [joint.id for joint in robot.joint_map.values() if joint.id < NUM_DOFS],
         device=device,
     )
+    # Swap index and ring for theseus left-allegro
+    init_pose[[0, 1, 2, 3]], init_pose[[8, 9, 10, 11]] = (
+        init_pose[[8, 9, 10, 11]],
+        init_pose[[0, 1, 2, 3]],
+    )
     init_pose = init_pose[joint_map]
 
     # Intialize ground truth link poses
-    encoder_vals = th.Vector(
-        tensor=init_pose,
-        name="encoder_vals",
-    )
-    print(encoder_vals)
+    encoder_vals = th.Vector(tensor=init_pose, name="encoder_vals", dtype=torch.float64)
     gt_poses = fkin(encoder_vals.tensor)
     gt_poses = torch.vstack(gt_poses).to(device)
     gt_poses = th.SE3(tensor=gt_poses, name="poses", dtype=torch.float32)
