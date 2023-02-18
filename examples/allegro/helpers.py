@@ -64,28 +64,28 @@ def load_robot(urdf_file: str, device):
     robot = Robot.from_urdf_file(urdf_file, device=device)
     all_links = [
         "base_link",
-        "link_0.0",
-        "link_1.0",
-        "link_2.0",
-        "link_3.0",
-        "link_3.0_tip",
-        "link_4.0",
-        "link_5.0",
-        "link_6.0",
-        "link_7.0",
-        "link_7.0_tip",
         "link_8.0",
         "link_9.0",
         "link_10.0",
         "link_11.0",
         "link_11.0_tip",
+        "link_4.0",
+        "link_5.0",
+        "link_6.0",
+        "link_7.0",
+        "link_7.0_tip",
+        "link_0.0",
+        "link_1.0",
+        "link_2.0",
+        "link_3.0",
+        "link_3.0_tip",
         "link_12.0",
         "link_13.0",
         "link_14.0",
         "link_15.0",
         "link_15.0_tip",
     ]
-    tip_ids = [0, 5, 10, 15, 20]
+    tip_ids = [5, 10, 15, 20]
     # index, middle, ring, thumb
     fkin, _ = get_forward_kinematics(robot, all_links)
     return robot, fkin, all_links, tip_ids

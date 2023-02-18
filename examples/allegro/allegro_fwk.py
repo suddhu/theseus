@@ -44,9 +44,38 @@ def main(visualize=False):
     n_links = len(all_links)
     NUM_DOFS = 16
 
+    init_pose = torch.tensor(
+        [
+            0.0627,
+            1.2923,
+            0.3383,
+            0.1088,
+            0.0724,
+            1.1983,
+            0.1551,
+            0.1499,
+            0.1343,
+            1.1736,
+            0.5355,
+            0.2164,
+            1.1202,
+            1.1374,
+            0.8535,
+            -0.0852,
+        ],
+        device=device,
+    )  # init grasp pose for allegro
+
+    # FK function is applied breadth-first, so swap the indices from the allegro convention
+    joint_map = torch.tensor(
+        [joint.id for joint in robot.joint_map.values() if joint.id < NUM_DOFS],
+        device=device,
+    )
+    init_pose = init_pose[joint_map]
+
     # Intialize ground truth link poses
     encoder_vals = th.Vector(
-        tensor=torch.zeros(1, NUM_DOFS, device=device),
+        tensor=init_pose,
         name="encoder_vals",
     )
     print(encoder_vals)
