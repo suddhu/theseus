@@ -148,8 +148,10 @@ class AutoDiffCostFunction(CostFunction):
         cost_weight: Optional[CostWeight] = None,
         aux_vars: Optional[Sequence[Variable]] = None,
         name: Optional[str] = None,
+        autograd_create_graph: bool = True,
         autograd_strict: bool = False,
         autograd_vectorize: bool = False,
+        autograd_strategy: str = "reverse-mode",
         autograd_mode: Union[str, AutogradMode] = AutogradMode.VMAP,
     ):
         if cost_weight is None:
@@ -167,8 +169,10 @@ class AutoDiffCostFunction(CostFunction):
 
         self._err_fn = err_fn
         self._dim = dim
+        self._autograd_create_graph = autograd_create_graph
         self._autograd_strict = autograd_strict
         self._autograd_vectorize = autograd_vectorize
+        self._autograd_strategy = autograd_strategy
 
         # The following are auxiliary Variable objects to hold tensor data
         # during jacobian computation without modifying the original Variable objects
@@ -224,9 +228,10 @@ class AutoDiffCostFunction(CostFunction):
         return autogradF.jacobian(
             jac_fn,
             optim_tensors,
-            create_graph=True,
+            create_graph=self._autograd_create_graph,
             strict=self._autograd_strict,
             vectorize=self._autograd_vectorize,
+            strategy=self._autograd_strategy,
         )
 
     def _make_jac_fn_vmap(
@@ -313,10 +318,17 @@ class AutoDiffCostFunction(CostFunction):
                 for k in range(len(optim_vars))
             )
         else:
+            # torch.cuda.reset_peak_memory_stats()
+            # pre_jac_err = torch.cuda.max_memory_allocated() / 1048576
             jacobians_raw = self._compute_autograd_jacobian(
                 tuple(v.tensor for v in optim_vars),
                 self._make_jac_fn(self._tmp_optim_vars, aux_vars),
             )
+            # torch.cuda.reset_peak_memory_stats()
+            # jac_err = torch.cuda.max_memory_allocated() / 1048576
+            # print(
+            #     f"Post _compute_autograd_jacobian diff: {(jac_err - pre_jac_err):.2f} MB"
+            # )
             aux_idx = torch.arange(err.shape[0])  # batch_size
             jacobians_full = tuple(jac[aux_idx, :, aux_idx, :] for jac in jacobians_raw)
 
